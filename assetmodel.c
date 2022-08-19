@@ -1,8 +1,63 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
+
+struct Date {
+	int day;
+	int month;
+	int year;
+};
 
 
+
+
+int monthDiff(struct Date date1, struct Date date2)
+{
+	int result = 0;
+	
+	result = date2.month - date1.month + 12 * (date2.year - date1.year);
+	
+	return result;
+}
+
+
+
+
+
+float dateDiff(struct Date date1, struct Date date2)
+{
+	float result = 0.0;
+	
+	// Convert dates to Julian Day Number
+	
+	int JDN1 = 367 * date1.year - (7 * (date1.year + 5001 + (date1.month - 9) / 7)) / 4 + (275 * date1.month) / 9 + date1.day + 1729777;
+	int JDN2 = 367 * date2.year - (7 * (date2.year + 5001 + (date2.month - 9) / 7)) / 4 + (275 * date2.month) / 9 + date2.day + 1729777;
+
+	result = ((float)JDN2 - (float)JDN1) / 365.25;
+	
+	return result;
+}
+
+
+/*
 float dateDiff(int day1, int mon1, int year1, int day2, int mon2, int year2)
+{
+	float result = 0.0;
+	
+	// Convert dates to Julian Day Number
+	
+	int JDN1 = 367 * year1 - (7 * (year1 + 5001 + (mon1 - 9) / 7)) / 4 + (275 * mon1) / 9 + day1 + 1729777;
+	int JDN2 = 367 * year2 - (7 * (year2 + 5001 + (mon2 - 9) / 7)) / 4 + (275 * mon2) / 9 + day2 + 1729777;
+
+	result = ((float)JDN2 - (float)JDN1) / 365.25;
+	
+	return result;
+}
+
+*/
+
+
+float dateDiff2(int day1, int mon1, int year1, int day2, int mon2, int year2)
 {
 	int day_diff, mon_diff, year_diff;
 	
@@ -16,11 +71,107 @@ float dateDiff(int day1, int mon1, int year1, int day2, int mon2, int year2)
 		printf("Second date is invalid.\n");
 		exit(0);
 	}
+	
+	if (day2 > day1)
+	{
+		// borrow days from february?
+		
+		if (mon2 == 3)
+		{
+			// check if its a leap year
+			if ((year2 % 4 == 0 && year2 % 100 != 0) || (year2 % 400 == 0))
+			{
+				day2 += 29;
+			}
+			else
+			{
+				day2 += 28;
+			}
+		}
+		
+		// borrow days from april or june or september or november
+		else if (mon2 == 5 || mon2 == 7 || mon2 == 10 || mon2 == 12)
+		{
+			day2 += 30;
+		}
+		
+		//borrow days from jan or mar or july or aug or oct or dec
+		else
+		{
+			day2 += 31;
+		}
+		
+		mon2 = mon2 - 1;
+		
+	}
+	
+	if (mon2 < mon1)
+	{
+		mon2 += 12;
+		year2 -= 1;
+	}
 }
 
 int valid_date(int day, int mon, int year)
 {
-	int 
+	int is_valid = 1, is_leap = 0;
+	
+	if (year >= 1800 && year <= 9999)
+	{
+		// check if it is a leap year
+		if ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0))
+		{
+			is_leap = 1;
+		}
+		
+		// check if mon is between 1 and 12
+		
+		if (mon >= 1 && mon < 12)
+		{
+			// check for days in feb
+			if (mon == 2)
+			{
+				if (is_leap && day == 29)
+				{
+					is_valid = 1;
+				}
+				else if (day > 28)
+				{
+					is_valid = 0;
+				}
+			}
+			
+			// check for days in april, june, september, and november
+			
+			else if (mon == 4 || mon == 6 || mon == 9 || mon == 11)
+			{
+				if (day > 30)
+				{
+					is_valid = 0;
+				}
+			}
+			
+			// check for days in rest of months
+			else if (day > 31)
+			{
+				is_valid = 0;
+			}
+		}
+		
+		else
+		{
+			is_valid = 0;
+		}
+		
+	}
+	
+	else
+	{
+		is_valid = 0;
+	}	
+	
+	return is_valid;	
+
 }
 
 
@@ -83,19 +234,41 @@ int bisectionSearch(float arr[], int lo, int hi, float x)
 
 
 
-float bond_mkt_value(float coupon, float prin, int mode, float periods,float treasury_rate, float mkt_sprd)
+float bond_mkt_value(float coupon, float prin, int pmt_freq, int periods,float treasury_rate, float mkt_sprd)
 {
 	float mkt_value = 0.0;
 	float v = 1.0;
-	float mkt_rate = treasury_rate + mkt_sprd;
+	float mkt_rate = (treasury_rate + mkt_sprd) / 12.0;
+	coupon /= pmt_freq;
 	
-	for (int i = 1; i <= periods; i++)
+	while (periods >= 0)
+	{
+		v /= (1 + mkt_rate);
+		
+		if (periods % (12 / pmt_freq) == 0)
+		{
+			mkt_value += prin * coupon * v * powf(1.0 / (1 + mkt_rate), 0.5);  // powf is to account for timings, we assume payments are mid month
+		}
+		
+		periods--;
+	}
+	
+	
+	mkt_value += prin * v;
+	
+	return mkt_value;
+	
+	
+	
+	/*
+	
+	for (float i = 1; i <= periods; i++)
 	{
 		v /= (1+mkt_rate); 
 		
 		if (i < periods)
 		{
-			mkt_value += prin * coupon * v;
+			mkt_value += prin * coupon * v * powf(1.0 / (1 + mkt_rate), 0.5);  // powf is to account for timings, we assume payments are mid month
 		}
 		else 
 		{
@@ -104,15 +277,14 @@ float bond_mkt_value(float coupon, float prin, int mode, float periods,float tre
 	}
 
 	return mkt_value;
-	
+	*/
 }
-
 
 
 int main()
 {
 
-	float periods = 21.0;
+	int periods = 21;
 	float mkt_rate = 0.0545;
 	float treasury = 0.0;
 	float mkt_value = 0.0;
@@ -138,23 +310,30 @@ int main()
 
 	int len = sizeof(yc_tenors) / sizeof(yc_tenors[0]);
 	
-	mkt_value = bond_mkt_value(	0.053, 2000000.0, 1, 31.0, 0.03, 0.0245);
 	
-	
-	
-	//pos = bisectionSearch(yc_tenors, 0, 9, 25);
-	treasury = naiveInterp(yc_tenors,scn[0], 25.0, len);
-	
-	printf("%f\n", rates[len-1]);
-	
-	
+	struct Date maturity_date = {15, 12, 2049};
+	struct Date projection_date = {30, 9, 2019};
 
 	
 	
+	
+	periods = monthDiff(projection_date, maturity_date);
+	
+	//pos = bisectionSearch(yc_tenors, 0, 9, 25);
+	treasury = naiveInterp(yc_tenors,scn[0], 25.0, len);
+	printf("%f\n", treasury);
+	
+	printf("%d\n", periods);
+	
+	float hiImFrack = powf(0.95, 0.5);
+	
+	printf("%f\n", hiImFrack);
+	
+	mkt_value = bond_mkt_value(	0.053, 2000000.0, 1,periods, 0.03, 0.0245);
+	
 	printf("%f\n", mkt_value);
-	printf("%f", treasury);
 	
-	
+
 }
 
 
@@ -167,5 +346,14 @@ issues:
 dealing with dates in C
 interpolation
 solver functionality
+
+*/
+
+
+
+
+
+/*
+date logic: overiq.com
 
 */
