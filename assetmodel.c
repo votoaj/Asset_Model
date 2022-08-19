@@ -2,6 +2,31 @@
 #include <stdio.h>
 
 
+float dateDiff(int day1, int mon1, int year1, int day2, int mon2, int year2)
+{
+	int day_diff, mon_diff, year_diff;
+	
+	if (!valid_date(day1, mon1, year1))
+	{
+		printf("First date is invalid.\n");
+	}
+	
+	if (!valid_date(day2, mon2, year2))
+	{
+		printf("Second date is invalid.\n");
+		exit(0);
+	}
+}
+
+int valid_date(int day, int mon, int year)
+{
+	int 
+}
+
+
+
+
+
 float naiveInterp(float x[], float y[], float xp, int len)
 {
 	
