@@ -241,43 +241,26 @@ float market_value_bond(float coupon, float prin, int pmt_freq, int periods,floa
 	float mkt_rate = (treasury_rate + mkt_sprd) / 12.0;
 	coupon /= pmt_freq;
 	
-	while (periods >= 0)
+	while (periods > 0)
 	{
-		v /= (1 + mkt_rate);
-		
+			
 		if (periods % (12 / pmt_freq) == 0)
 		{
 			mkt_value += prin * coupon * v * powf(1.0 / (1 + mkt_rate), 0.5);  // powf is to account for timings, we assume payments are mid month
 		}
 		
-		periods--;
-	}
-	
-	
-	mkt_value += prin * v;
-	
-	return mkt_value;
-	
-	
-	
-	/*
-	
-	for (float i = 1; i <= periods; i++)
-	{
-		v /= (1+mkt_rate); 
+		v /= (1 + mkt_rate);
 		
-		if (i < periods)
-		{
-			mkt_value += prin * coupon * v * powf(1.0 / (1 + mkt_rate), 0.5);  // powf is to account for timings, we assume payments are mid month
-		}
-		else 
-		{
-			mkt_value += prin * (1 + coupon) * v;
-		}
+		periods--;
+		
 	}
-
+	
+	
+	mkt_value += prin * (1 + coupon) * v * powf(1.0 / (1 + mkt_rate), 0.5);
+	
 	return mkt_value;
-	*/
+	
+	
 }
 
 void cashflow_bond(float buf[1000],float scn[361][10], float coupon, float prin, int pmt_freq, int periods)
@@ -299,6 +282,46 @@ void cashflow_bond(float buf[1000],float scn[361][10], float coupon, float prin,
 	
 	buf[time_step] = prin * (1 + coupon);
 }
+
+
+float market_value_commercial_mortgage(float coupon, float prin, int pmt_freq, int periods,float treasury_rate, float mkt_sprd, int amort_term)
+{
+	float mkt_value = 0.0;
+	float v = 1.0;
+	float mkt_rate = (treasury_rate + mkt_sprd) / 12.0;
+	coupon /= pmt_freq;
+	float interest = 0.0;
+	float payment = prin / ((1.0 - powf( 1.0 / ( 1.0 + coupon) , amort_term)) / coupon);
+	
+	while (periods > 0)
+	{
+		
+		if (periods % (12 / pmt_freq) == 0)
+		{
+			
+			interest = prin * coupon;
+			
+			mkt_value += payment * v * powf(1.0 / (1 + mkt_rate), 0.5);  // powf is to account for timings, we assume payments are mid month
+			
+			prin = prin - payment + interest;
+		}
+		
+		v /= (1 + mkt_rate);
+		
+		periods--;
+	}
+	
+	
+	mkt_value += prin * v * powf(1.0 / (1 + mkt_rate), 0.5);  // any leftover principal.....shouldnt be any
+	
+	return mkt_value;
+	
+}
+
+
+
+
+
 
 int main()
 {
@@ -366,17 +389,30 @@ int main()
 	
 	float cashflows[1000] = {0};
 	
-	cashflow_bond(cashflows, scn, 0.053, 2000000.0, 2, periods);
+	//cashflow_bond(cashflows, scn, 0.053, 2000000.0, 2, periods);
 	
-	for (int i = 0; i < 364; i++)
+	/*for (int i = 0; i < 364; i++)
 	{
 		printf("%f\n", cashflows[i]);
-	}
+	}*/
 
 	mkt_value = market_value_bond(	0.053, 2000000.0, 1,periods, 0.03, 0.0245);
 	
-	printf("%f\n", mkt_value);
+	printf("mkt value of bond: %f\n", mkt_value);
 	
+	struct Date maturity_date1 = {1, 6, 2028};
+	struct Date projection_date1 = {1, 5, 2018};
+
+	
+	periods = monthDiff(projection_date1, maturity_date1);
+	
+
+	
+	mkt_value = market_value_commercial_mortgage(0.04524, 3300000.0, 12, 120, 0.0287, 0.0175, 240);
+	printf("mkt value of commercial mtg: %f\n", mkt_value);
+	
+	float payment = 3300000.0 / ((1.0 - powf( 1.0 / ( 1.0 + 0.04524/12) , 240)) / (0.04524 / 12));
+	printf("payment of commercial mtg: %f\n", payment);
 
 }
 
