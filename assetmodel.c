@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <time.h>
 
 struct Date {
 	int day;
@@ -201,26 +202,26 @@ int valid_date(int day, int mon, int year)
 
 
 
-float naiveInterp(float x[], float y[], float xp, int len)
+float naiveInterp(float *x, float *y, float xp, int len)
 {
 	
 	float result = 0.0;
 			
-	if (xp < x[0])
+	if (xp < *x)
 	{
-		result = y[0];
+		result = *y;
 	}
-	else if (xp > x[len-1])
+	else if (xp > *(x + len - 1))
 	{
-		result = y[len-1];
+		result = *(y + len - 1);
 	}
 	else
 	{	
 		for (int i = 0; i < (len-1); i++)
 		{
-			if (xp >= x[i] && xp <= x[i+1])
+			if (xp >= *(x + i) && xp <= *(x + i + 1))
 			{
-				result = y[i] + (y[i+1] - y[i]) * (xp - x[i]) / (x[i+1] - x[i]);
+				result = *(y + i) + (*(y + i + 1) - *(y + i)) * (xp - *(x + i)) / (*(x + i + 1) - *(x + i));
 			}
 			
 		}
@@ -228,8 +229,6 @@ float naiveInterp(float x[], float y[], float xp, int len)
 	
 	return result;
 }
-
-
 
 
 
@@ -257,10 +256,14 @@ int bisectionSearch(float arr[], int lo, int hi, float x)
 
 
 
-float market_value_bond(float coupon, float prin, int pmt_freq, int periods,float treasury_rate, float mkt_sprd)
+float market_value_bond(float coupon, float prin, int pmt_freq, int periods, float mkt_sprd, float yc_tenors[], float scn[]) /* pass array or pointer as current yield curve */
 {
 	float mkt_value = 0.0;
 	float v = 1.0;
+	
+	int len = sizeof(yc_tenors) / sizeof(yc_tenors[0]);
+	float treasury_rate = naiveInterp(yc_tenors, scn, periods / 12.0, len);
+	
 	float mkt_rate = (treasury_rate + mkt_sprd) / 12.0;
 	coupon /= pmt_freq;
 	
@@ -286,24 +289,24 @@ float market_value_bond(float coupon, float prin, int pmt_freq, int periods,floa
 	
 }
 
-void cashflow_bond(float buf[1000],float scn[361][10], float coupon, float prin, int pmt_freq, int periods)
+float cashflow_bond(float *scn, float coupon, float prin, int pmt_freq, int periods)
 {
-	int time_step = 0;
+	
+	float cashflow = 0.0;
+	
 	coupon /= pmt_freq;
-		
-	while (periods > 0)
+
+	if (periods % (12 / pmt_freq) == 0 )
 	{
-		if (periods % (12 / pmt_freq) == 0)
-		{
-			buf[time_step] = prin * coupon;
-		}
-		
-		time_step++;
-		periods--;
-		
+		cashflow += prin * coupon;
 	}
 	
-	buf[time_step] = prin * (1 + coupon);
+	if (periods == 0)
+	{
+		cashflow += prin;
+	}	
+	
+	return cashflow;
 }
 
 
@@ -468,8 +471,7 @@ int main()
 	
 	
 	int periods = 21;
-	float treasury = 0.0;
-	float mkt_value = 0.0;
+
 	
 	float yc_tenors[10] = { 0.25, 0.5, 1, 2, 3, 5, 7, 10, 20, 30 };
 		
@@ -477,51 +479,37 @@ int main()
 	
 	
 	struct Date maturity_date = {15, 12, 2049};
-	struct Date projection_date = {30, 9, 2019};
+	struct Date projection_date = {30, 6, 2022};
 	
 	periods = monthDiff(projection_date, maturity_date);
+	float mkt_value = 0.0;
+	float cashInt = 0.0;
 	
-	//pos = bisectionSearch(yc_tenors, 0, 9, 25);
-	treasury = naiveInterp(yc_tenors,scn[0], 25.0, len);
-	printf("%f\n", treasury);
 	
-	printf("%d\n", periods);
+	int time_step = 0;
 	
-	/*float cashflows[1000] = {0};
+	mkt_value = market_value_bond(0.053, 2000000.0, 2, periods, 0.0252, yc_tenors, scn[0]);
+	printf("%f",mkt_value);
 	
-	cashflow_bond(cashflows, scn, 0.053, 2000000.0, 2, periods);
 	
-	for (int i = 0; i < 364; i++)
+	while (time_step < 361 && periods >= 0)
 	{
-		printf("%f\n", cashflows[i]);
-	}*/
+		mkt_value = market_value_bond(0.053, 2000000.0, 2, periods, 0.0252, yc_tenors, scn[time_step]);
+		cashInt = cashflow_bond(scn[time_step], 0.053, 2000000.0, 2, periods);
+		
+		printf("Market Value, Cashflow at time %d: %f, %f\n", time_step, mkt_value, cashInt);
+		
+		periods--;
+		time_step++;
+	
+	}
 
-	mkt_value = market_value_bond(	0.053, 2000000.0, 1,periods, 0.03, 0.0245);
-	
-	printf("mkt value of bond: %f\n", mkt_value);
-	
-	
-	/*
-	
-	struct Date maturity_date1 = {1, 6, 2028};
-	struct Date projection_date1 = {1, 5, 2018};
+
 
 	
-	periods = monthDiff(projection_date1, maturity_date1);
-	
-	*/
-	
-	//mkt_value = market_value_mortgage(0.04524, 3300000.0, 12, 120, 0.0287, 0.0175, 240);
-	//printf("mkt value of commercial mtg: %f\n", mkt_value);
-	
-	//float payment = 3300000.0 / ((1.0 - powf( 1.0 / ( 1.0 + 0.04524/12) , 240)) / (0.04524 / 12));
-	//printf("payment of commercial mtg: %f\n", payment);
-	
-	float mkt_value_cmo = market_value_cmo(0.575, -0.0050, 0.1825, 0.0, 0.0135, 0.0373, 1588473.0, 12, 60, 0.0275, 0.022, 0.0035);
-	
-	//market_value_cmo(float cmoAPortion, float cmoASpread, float cmoBPortion, float cmoBSpread, float cmoCSpread, float underlying_coupon, float underlying_prin, int pmt_freq, int periods,float treasury_rate, float mkt_sprd)
-	printf("mkt value of cmo: %f\n", mkt_value);
 
+	
+	
 }
 
 
