@@ -3,11 +3,38 @@
 #include <math.h>
 #include <time.h>
 
+
+/* GLOBALVARIABLES */
+float yieldcurve_tenors[10] = { 0.25, 0.5, 1, 2, 3, 5, 7, 10, 20, 30 };
+float rates[10] = {0.0172, 0.0251, 0.028, 0.0292, 0.0299, 0.0301, 0.0304, 0.0298, 0.0338, 0.0314};
+int yc_len = 10;
+
+////////////////////
+
+
+
+
+
+
 struct Date {
 	int day;
 	int month;
 	int year;
 };
+
+struct Bond {
+	float coupon;
+	float prin;
+	int pmt_freq;
+	struct Date maturityDate;
+	struct Date callDate;	
+	float mkt_spread;
+	float mkt_value;
+};
+
+
+
+
 
 
 /*
@@ -47,157 +74,54 @@ int monthDiff(struct Date date1, struct Date date2)
 }
 
 
-
-
-
-float dateDiff(struct Date date1, struct Date date2)
+float r_base(float ten)
 {
-	float result = 0.0;
-	
-	// Convert dates to Julian Day Number
-	
-	int JDN1 = 367 * date1.year - (7 * (date1.year + 5001 + (date1.month - 9) / 7)) / 4 + (275 * date1.month) / 9 + date1.day + 1729777;
-	int JDN2 = 367 * date2.year - (7 * (date2.year + 5001 + (date2.month - 9) / 7)) / 4 + (275 * date2.month) / 9 + date2.day + 1729777;
-
-	result = ((float)JDN2 - (float)JDN1) / 365.25;
-	
-	return result;
-}
-
-
-/*
-float dateDiff(int day1, int mon1, int year1, int day2, int mon2, int year2)
-{
-	float result = 0.0;
-	
-	// Convert dates to Julian Day Number
-	
-	int JDN1 = 367 * year1 - (7 * (year1 + 5001 + (mon1 - 9) / 7)) / 4 + (275 * mon1) / 9 + day1 + 1729777;
-	int JDN2 = 367 * year2 - (7 * (year2 + 5001 + (mon2 - 9) / 7)) / 4 + (275 * mon2) / 9 + day2 + 1729777;
-	result = ((float)JDN2 - (float)JDN1) / 365.25;
-	
-	return result;
-}
-*/
-
-
-float dateDiff2(int day1, int mon1, int year1, int day2, int mon2, int year2)
-{
-	int day_diff, mon_diff, year_diff;
-	
-	if (!valid_date(day1, mon1, year1))
+	if (ten < yieldcurve_tenors[0])
 	{
-		printf("First date is invalid.\n");
+		return rates[0];
 	}
-	
-	if (!valid_date(day2, mon2, year2))
+	else if (ten > yieldcurve_tenors[(yc_len - 1)])
 	{
-		printf("Second date is invalid.\n");
-		exit(0);
-	}
-	
-	if (day2 > day1)
-	{
-		// borrow days from february?
-		
-		if (mon2 == 3)
-		{
-			// check if its a leap year
-			if ((year2 % 4 == 0 && year2 % 100 != 0) || (year2 % 400 == 0))
-			{
-				day2 += 29;
-			}
-			else
-			{
-				day2 += 28;
-			}
-		}
-		
-		// borrow days from april or june or september or november
-		else if (mon2 == 5 || mon2 == 7 || mon2 == 10 || mon2 == 12)
-		{
-			day2 += 30;
-		}
-		
-		//borrow days from jan or mar or july or aug or oct or dec
-		else
-		{
-			day2 += 31;
-		}
-		
-		mon2 = mon2 - 1;
-		
-	}
-	
-	if (mon2 < mon1)
-	{
-		mon2 += 12;
-		year2 -= 1;
-	}
-}
-
-int valid_date(int day, int mon, int year)
-{
-	int is_valid = 1, is_leap = 0;
-	
-	if (year >= 1800 && year <= 9999)
-	{
-		// check if it is a leap year
-		if ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0))
-		{
-			is_leap = 1;
-		}
-		
-		// check if mon is between 1 and 12
-		
-		if (mon >= 1 && mon < 12)
-		{
-			// check for days in feb
-			if (mon == 2)
-			{
-				if (is_leap && day == 29)
-				{
-					is_valid = 1;
-				}
-				else if (day > 28)
-				{
-					is_valid = 0;
-				}
-			}
-			
-			// check for days in april, june, september, and november
-			
-			else if (mon == 4 || mon == 6 || mon == 9 || mon == 11)
-			{
-				if (day > 30)
-				{
-					is_valid = 0;
-				}
-			}
-			
-			// check for days in rest of months
-			else if (day > 31)
-			{
-				is_valid = 0;
-			}
-		}
-		
-		else
-		{
-			is_valid = 0;
-		}
-		
+		return rates[(yc_len - 1)];
 	}
 	
 	else
 	{
-		is_valid = 0;
-	}	
-	
-	return is_valid;	
+		for (int i = 0; i < (yc_len - 1); i++)
+		{
+			if (yieldcurve_tenors[i] <= ten && ten <= yieldcurve_tenors[i+1])
+			{
+				return rates[i] + (rates[i+1] - rates[i]) * (ten - yieldcurve_tenors[i]) / (yieldcurve_tenors[i+1] - yieldcurve_tenors[i]);
+			} 
+			
+		}
+	}
 
+	printf("Tenor not found.\n");
+	return 0.0;
+	
 }
 
+float r(float t, float T)
+{
+	if (t = T)
+		return r_base(T);
+	else
+		return (r_base(T)*T - r_base(t)*t) / (T - t);
+}
+
+
+
+float Z(t, T)
+{
+	return exp(-1.0 * r(t, t+T) * (T-t));
+}
+
+
+void set_mktSpread(float actual_mkt_value,  )
+{
+	
+}
 
 
 
@@ -232,27 +156,51 @@ float naiveInterp(float *x, float *y, float xp, int len)
 
 
 
-int bisectionSearch(float arr[], int lo, int hi, float x)
+void bisectionMethod(float *x, float a, float b, int *itr)
 {
-	int pos; 
+
+	*x = (a + b) / 2;
+	++(*itr);
 	
-	if (lo <= hi && x >= arr[lo] && x <= arr[hi])
+	printf("Iteration no. %3d X = %7.5f\n", *itr, *x);
+
+}
+
+
+
+float market_value_bond_struct(struct Bond bond1, struct Date projDate) /* pass array or pointer as current yield curve */
+{
+	float mkt_value = 0.0;
+	float v = 1.0;
+	int periods = monthDiff(projDate, bond1.maturityDate);
+	
+	float treasury_rate = r(0.0, periods / 12.0);
+	
+	float mkt_rate = (treasury_rate + bond1.mkt_spread) / 12.0;
+	bond1.coupon /= bond1.pmt_freq;
+	
+	while (periods > 0)
 	{
-		pos = lo + (((float)(hi - lo) / (arr[hi] - arr[lo])) * ( x - arr[lo] ));
+			
+		if (periods % (12 / bond1.pmt_freq) == 0)
+		{
+			mkt_value += bond1.prin * bond1.coupon * v * powf(1.0 / (1 + mkt_rate), 0.5);  // powf is to account for timings, we assume payments are mid month
+		}
 		
-		if (arr[pos] == x)
-			return pos;
+		v /= (1 + mkt_rate);
 		
-		if (arr[pos] < x)
-			return bisectionSearch(arr, pos + 1, hi, x);
-		
-		if (arr[pos] > x)
-			return bisectionSearch(arr, lo, pos - 1, x);
+		periods--;
 		
 	}
 	
-	return -1;
+	
+	mkt_value += bond1.prin * (1 + bond1.coupon) * v * powf(1.0 / (1 + mkt_rate), 0.5);
+	
+	return mkt_value;
+	
+	
 }
+
 
 
 
@@ -443,10 +391,6 @@ float market_value_cmo(float cmoAPortion, float cmoASpread, float cmoBPortion, f
 
 
 
-
-
-
-
 int main()
 {
 
@@ -458,6 +402,11 @@ int main()
 	FILE* fp = fopen("C:\\work\\C\\assetmodel\\scn.csv", "r");
 	
 	float temp = 0.0;
+	
+	
+	
+	
+	
 	
 	for (int i = 0; i < 361; i++)
 	{
@@ -472,17 +421,84 @@ int main()
 	
 	int periods = 21;
 
-	
-	float yc_tenors[10] = { 0.25, 0.5, 1, 2, 3, 5, 7, 10, 20, 30 };
 		
-	int len = sizeof(yc_tenors) / sizeof(yc_tenors[0]);
-	
-	
-	struct Date maturity_date = {15, 12, 2049};
+	struct Date maturity_date = {30, 1, 2032};
 	struct Date projection_date = {30, 6, 2022};
+	
 	
 	periods = monthDiff(projection_date, maturity_date);
 	float mkt_value = 0.0;
+	
+	/*
+	float mkt_value_input = 1997875.0;
+	float mkt_spread = 0.0;
+	
+	
+	int itr = 0, maxmitr = 40;
+	float allerr = 0.1;
+	float a = 0.0, b = 0.2;
+	
+	
+	float mkt_diff_a = 0.0;
+	
+	mkt_value = market_value_bond(0.033, 2500000.0, 2, periods, 0.0, yc_tenors, scn[0]);
+	
+	float mkt_diff_mid = mkt_value_input - mkt_value;
+	
+	
+	while ( fabs(mkt_diff_mid) > allerr && itr < maxmitr )
+	{
+		
+		mkt_value = market_value_bond(0.033, 2500000.0, 2, periods, a, yc_tenors, scn[0]);
+		
+		mkt_diff_a = mkt_value_input - mkt_value;
+		
+		bisectionMethod(&mkt_spread, a, b, &itr);
+		
+		mkt_value = market_value_bond(0.033, 2500000.0, 2, periods, mkt_spread, yc_tenors, scn[0]);
+		
+		mkt_diff_mid = mkt_value_input - mkt_value;
+		
+		if ((mkt_diff_mid < 0.0 && mkt_diff_a < 0.0) || (mkt_diff_mid > 0.0 && mkt_diff_a > 0.0))
+		{
+			a = mkt_spread;
+			b = b;
+		}
+		else
+		{
+			a = a;
+			b = mkt_spread;
+		}
+		
+		
+	}
+	
+	mkt_value = market_value_bond(0.033, 2500000.0, 2, periods, mkt_spread, yc_tenors, scn[0]);
+	
+	printf("Market Value: %f, Spread: %f\n",mkt_value, mkt_spread);
+	*/
+	struct Bond bond1 = {0.033, 2500000.0, 2, maturity_date, maturity_date, 0.038};
+
+	/*
+	
+	float coupon;
+	float prin;
+	int pmt_freq;
+	struct Date maturityDate;
+	struct Date callDate;
+	
+	float mkt_sprd;
+	float periods;
+	
+	market_value_bond_struct(struct Bond bond1, struct Date projDate, float yc_tenors[], float scn[])
+	
+	*/
+	
+	mkt_value = market_value_bond_struct(bond1, projection_date);
+	
+	printf("Market Value: %f, Spread: %f",mkt_value, bond1.mkt_spread);
+	
+	/*
 	float cashInt = 0.0;
 	
 	
@@ -505,7 +521,7 @@ int main()
 	}
 
 
-
+	*/
 	
 
 	
@@ -514,7 +530,3 @@ int main()
 
 
 
-
-/*
-date logic: overiq.com
-*/
