@@ -9,6 +9,10 @@ float yieldcurve_tenors[10] = { 0.25, 0.5, 1, 2, 3, 5, 7, 10, 20, 30 };
 float rates[10] = {0.0172, 0.0251, 0.028, 0.0292, 0.0299, 0.0301, 0.0304, 0.0298, 0.0338, 0.0314};
 int yc_len = 10;
 
+const float call_rates[11] = {-0.05,-0.04,-0.03,-0.02,-0.01,0.0,0.01,0.02,0.03,0.04,0.05}
+const float call_probs[11] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0}
+int call_len = 11;
+
 ////////////////////
 
 
@@ -22,6 +26,8 @@ struct Date {
 	int year;
 };
 
+struct Date _projDate =  {30, 6, 2022};
+
 struct Bond {
 	float coupon;
 	float prin;
@@ -29,7 +35,7 @@ struct Bond {
 	struct Date maturityDate;
 	struct Date callDate;	
 	float mkt_spread;
-	float mkt_value;
+	float mkt_value_input;
 };
 
 
@@ -118,9 +124,83 @@ float Z(t, T)
 }
 
 
-void set_mktSpread(float actual_mkt_value,  )
+
+
+float market_value_bond_struct(struct Bond bond1, struct Date projDate) /* pass array or pointer as current yield curve */
 {
+	float mkt_value = 0.0;
+	float v = 1.0;
+	int periods = monthDiff(projDate, bond1.maturityDate);
 	
+	float treasury_rate = r(0.0, periods / 12.0);
+	
+	float mkt_rate = (treasury_rate + bond1.mkt_spread) / 12.0;
+	bond1.coupon /= bond1.pmt_freq;
+	
+	while (periods > 0)
+	{
+			
+		if (periods % (12 / bond1.pmt_freq) == 0)
+		{
+			mkt_value += bond1.prin * bond1.coupon * v * powf(1.0 / (1 + mkt_rate), 0.5);  // powf is to account for timings, we assume payments are mid month
+		}
+		
+		v /= (1 + mkt_rate);
+		
+		periods--;
+		
+	}
+	
+	
+	mkt_value += bond1.prin * (1 + bond1.coupon) * v * powf(1.0 / (1 + mkt_rate), 0.5);
+	
+	return mkt_value;
+	
+	
+}
+
+void set_mktSpread_bond(struct Bond *bond1)
+{
+	int itr = 0;
+	int maxmitr = 40;
+	float allerr = 1.0;
+	float a = 0.0;
+	float b = 0.2;
+	
+	float mkt_diff_a = 0.0;	
+	float mkt_diff_mid = 0.0;
+	
+	
+	while ( itr < maxmitr )
+	{
+		bond1->mkt_spread = a;
+		
+		mkt_diff_a = bond1->mkt_value_input - market_value_bond_struct(*bond1, _projDate);
+			
+		//using bisection method here
+		//bisectionMethod(&mkt_spread, a, b, &itr);		
+		bond1->mkt_spread = (a + b) / 2;
+		
+		mkt_diff_mid = bond1->mkt_value_input - market_value_bond_struct(*bond1, _projDate);
+		
+		if (abs(mkt_diff_mid) < allerr)
+		{
+			break;
+		}
+		
+		
+		if ((mkt_diff_mid < 0.0 && mkt_diff_a < 0.0) || (mkt_diff_mid > 0.0 && mkt_diff_a > 0.0))
+		{
+			a = bond1->mkt_spread;
+			b = b;
+		}
+		else
+		{
+			a = a;
+			b = bond1->mkt_spread;
+		}			
+		itr++;		
+	}	
 }
 
 
@@ -167,91 +247,29 @@ void bisectionMethod(float *x, float a, float b, int *itr)
 }
 
 
-
-float market_value_bond_struct(struct Bond bond1, struct Date projDate) /* pass array or pointer as current yield curve */
-{
-	float mkt_value = 0.0;
-	float v = 1.0;
-	int periods = monthDiff(projDate, bond1.maturityDate);
-	
-	float treasury_rate = r(0.0, periods / 12.0);
-	
-	float mkt_rate = (treasury_rate + bond1.mkt_spread) / 12.0;
-	bond1.coupon /= bond1.pmt_freq;
-	
-	while (periods > 0)
-	{
-			
-		if (periods % (12 / bond1.pmt_freq) == 0)
-		{
-			mkt_value += bond1.prin * bond1.coupon * v * powf(1.0 / (1 + mkt_rate), 0.5);  // powf is to account for timings, we assume payments are mid month
-		}
-		
-		v /= (1 + mkt_rate);
-		
-		periods--;
-		
-	}
-	
-	
-	mkt_value += bond1.prin * (1 + bond1.coupon) * v * powf(1.0 / (1 + mkt_rate), 0.5);
-	
-	return mkt_value;
-	
-	
-}
-
-
-
-
-float market_value_bond(float coupon, float prin, int pmt_freq, int periods, float mkt_sprd, float yc_tenors[], float scn[]) /* pass array or pointer as current yield curve */
-{
-	float mkt_value = 0.0;
-	float v = 1.0;
-	
-	int len = sizeof(yc_tenors) / sizeof(yc_tenors[0]);
-	float treasury_rate = naiveInterp(yc_tenors, scn, periods / 12.0, len);
-	
-	float mkt_rate = (treasury_rate + mkt_sprd) / 12.0;
-	coupon /= pmt_freq;
-	
-	while (periods > 0)
-	{
-			
-		if (periods % (12 / pmt_freq) == 0)
-		{
-			mkt_value += prin * coupon * v * powf(1.0 / (1 + mkt_rate), 0.5);  // powf is to account for timings, we assume payments are mid month
-		}
-		
-		v /= (1 + mkt_rate);
-		
-		periods--;
-		
-	}
-	
-	
-	mkt_value += prin * (1 + coupon) * v * powf(1.0 / (1 + mkt_rate), 0.5);
-	
-	return mkt_value;
-	
-	
-}
-
-float cashflow_bond(float *scn, float coupon, float prin, int pmt_freq, int periods)
+float cashflow_bond(struct Bond bond1, struct Date date1)
 {
 	
 	float cashflow = 0.0;
+	int periods = monthDiff(projDate, bond1.maturityDate);
+	float treasury_rate = r(0.0, periods / 12.0);
+	float call_margin = 0.01;
 	
-	coupon /= pmt_freq;
+	float call_rate = treasury_rate + bond1.mkt_spread + call_margin - bond1.coupon; // current rate plus margin minus actual coupon
+	
+	float call_prob = naiveInterp(call_rates, call_probs, call_rate, call_len);
+	
+	bond.coupon /= bond.pmt_freq;
 
-	if (periods % (12 / pmt_freq) == 0 )
+	if (periods % (12 / bond.pmt_freq) == 0 )
 	{
-		cashflow += prin * coupon;
+		cashflow += bond.prin * bond.coupon;
+		cashflow += bond.prin * call_prob;
 	}
 	
 	if (periods == 0)
 	{
-		cashflow += prin;
+		cashflow += bond.prin;
 	}	
 	
 	return cashflow;
@@ -477,7 +495,9 @@ int main()
 	
 	printf("Market Value: %f, Spread: %f\n",mkt_value, mkt_spread);
 	*/
-	struct Bond bond1 = {0.033, 2500000.0, 2, maturity_date, maturity_date, 0.038};
+	struct Bond bond1 = {0.033, 2500000.0, 2, maturity_date, maturity_date, 0.0, 1997875.0};
+	
+	set_mktSpread_bond(&bond1);
 
 	/*
 	
